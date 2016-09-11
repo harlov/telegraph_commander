@@ -7,20 +7,36 @@ from telegraph_commander.command import InvalidCommandArgumentsException, Invali
 from telegraph_commander.logger import get_logger
 
 
+class BotConfigurationException(Exception):
+    pass
+
+
 class BaseBot:
-    def __init__(self, config, router):
-        self.config = config
-        self.router = router
+    config = None
+    router = None
+    logger = None
+
+    def __init__(self):
+        self.check_configuration()
+
         self.event_loop = asyncio.get_event_loop()
-        self.telegram_api = TelegramApi(self.event_loop, config=config)
+        self.telegram_api = TelegramApi(self.event_loop, config=self.config)
         self.listen_updates = True
         self.last_update_id = None
 
-        self.logger = get_logger(self.config.LOGGER_NAME)
+        if self.logger is None:
+            self.logger = get_logger(self.config.LOGGER_NAME)
 
         self.router.logger = self.logger
         self.router.config = self.config
         self.router.event_loop = self.event_loop
+
+    def check_configuration(self):
+        if self.config is None:
+            raise BotConfigurationException('config object is not provided')
+
+        if self.router is None:
+            raise BotConfigurationException('router object is not provided')
 
     async def a_init(self):
         self.redis_client = await get_redis_client(self.config)
