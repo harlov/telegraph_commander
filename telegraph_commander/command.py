@@ -18,8 +18,13 @@ class BotCommand:
     logger = None
     router = None
 
-    def __init__(self, chat_id):
+    def __init__(self, chat_id, config, event_loop, logger, name):
         self.chat_id = chat_id
+        self.config = config
+        self.event_loop = event_loop
+        self.logger = logger
+        self.name = name
+
         self.telegram_api = TelegramApi(self.event_loop, self.config)
 
     async def a_init(self):
@@ -57,7 +62,10 @@ class BotCommand:
                 await self.set_state('provide_{}'.format(last_unsetted_param.get('name')))
                 return
         self.logger.debug('all params provided, run handle')
-        return await self.run_handle()
+        try:
+            return await self.run_handle()
+        except Exception as e:
+            self.logger.error('command {} exception: {}'.format(self.name, e))
 
     async def run_handle(self):
         raise NotImplemented
@@ -91,7 +99,11 @@ class CommandRouter:
     config = None
     event_loop = None
 
-    def __init__(self):
+    def __init__(self, logger, config, event_loop):
+        self.logger = logger
+        self.config = config
+        self.event_loop = event_loop
+
         self._commands_map = dict()
 
     def command(self, name):
@@ -100,6 +112,12 @@ class CommandRouter:
 
             def wrap_init(obj, *args, **kwargs):
                 obj._command_name = name
+                kwargs.update(dict(
+                    config=self.config,
+                    event_loop=self.event_loop,
+                    logger=self.logger,
+                    name=name
+                ))
                 orig_init(obj, *args, **kwargs)
 
             cls.__init__ = wrap_init
@@ -119,7 +137,7 @@ class CommandRouter:
             raise InvalidCommandException(command.get('command'))
 
         call_class = self._commands_map[command.get('command')]
-        command_instance = call_class(chat_id=chat_id)
+        command_instance = call_class(chat_id=chat_id, )
         if command.get('context') is not None:
             command_instance.context = command.get('context')
         else:

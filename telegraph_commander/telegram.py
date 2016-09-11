@@ -47,5 +47,4 @@ class TelegramApi:
             ))
 
         result = await self.bot_request('sendMessage', request_dict)
-        print(result)
         return result

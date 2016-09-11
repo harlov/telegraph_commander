@@ -15,28 +15,33 @@ class BaseBot:
     config = None
     router = None
     logger = None
+    telegram_api = None
+
+    router_class = None
+    config_class = None
 
     def __init__(self):
-        self.check_configuration()
-
         self.event_loop = asyncio.get_event_loop()
-        self.telegram_api = TelegramApi(self.event_loop, config=self.config)
+
+        self.bind_configuration()
+
         self.listen_updates = True
         self.last_update_id = None
+
+    def bind_configuration(self):
+        if self.config_class is None:
+            raise BotConfigurationException('config_class attr is not setted')
+
+        self.config = self.config_class()
 
         if self.logger is None:
             self.logger = get_logger(self.config.LOGGER_NAME)
 
-        self.router.logger = self.logger
-        self.router.config = self.config
-        self.router.event_loop = self.event_loop
+        if self.router_class is None:
+            raise BotConfigurationException('router_class attr is not setted')
 
-    def check_configuration(self):
-        if self.config is None:
-            raise BotConfigurationException('config object is not provided')
-
-        if self.router is None:
-            raise BotConfigurationException('router object is not provided')
+        self.router = self.router_class(self.logger, self.config, self.event_loop)
+        self.telegram_api = TelegramApi(self.event_loop, self.config)
 
     async def a_init(self):
         self.redis_client = await get_redis_client(self.config)
