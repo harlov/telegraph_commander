@@ -100,7 +100,8 @@ class BaseBot:
             else:
                 command = self.config.DEFAULT_COMMAND
         try:
-            await self.router.resolve(command, chat_id)
+            while command is not None:
+                command = await self.router.resolve(command, chat_id)
         except InvalidCommandException as e:
             await self.telegram_api.send_message(chat_id, 'invalid command : %s.' % (e,))
         except InvalidCommandArgumentsException as e:
@@ -124,7 +125,7 @@ class BaseBot:
         command_name = command_inp[0]
         command_args = command_inp[1:]
         self.logger.debug("command income: %s, args: %s" % (command_name, command_args))
-        return command_name, command_args
+        return dict(command=command_name, args_list=command_args)
 
     async def restore_state(self, chat, text):
         current_state = await self.redis_client.get(str(chat['id']))
@@ -133,4 +134,4 @@ class BaseBot:
 
         state_dict = json.loads(current_state)
         state_dict['args_list'].append(text)
-        return state_dict['command'], state_dict['args_list']
+        return state_dict

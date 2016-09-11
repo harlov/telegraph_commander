@@ -6,6 +6,7 @@ from telegraph_commander.telegram import TelegramApi
 
 class BotCommand:
     PARAMS = None
+    context = None
 
     """
     Base class for all bot's commands.
@@ -15,6 +16,7 @@ class BotCommand:
     config = None
     event_loop = None
     logger = None
+    router = None
 
     def __init__(self, chat_id):
         self.chat_id = chat_id
@@ -48,13 +50,14 @@ class BotCommand:
 
         if len(input_params_list):
             last_unsetted_param = input_params_list[0]
-            await self.telegram_api.send_message(self.chat_id, 'Please enter {}'.format(
-                last_unsetted_param.get('label') or last_unsetted_param.get('name')
-            ))
-            await self.set_state('provide_{}'.format(last_unsetted_param.get('name')))
-            return
+            if last_unsetted_param.get('dynamic') is not True:
+                await self.telegram_api.send_message(self.chat_id, 'Please enter {}'.format(
+                    last_unsetted_param.get('label') or last_unsetted_param.get('name')
+                ))
+                await self.set_state('provide_{}'.format(last_unsetted_param.get('name')))
+                return
         self.logger.debug('all params provided, run handle')
-        await self.run_handle()
+        return await self.run_handle()
 
     async def run_handle(self):
         raise NotImplemented
@@ -65,12 +68,14 @@ class BotCommand:
         state_dict = dict(
             command=self._command_name,
             stage=stage,
+            context=self.context,
             args_list=self.args_list
         )
         await self.redis_client.set(str(self.chat_id), json.dumps(state_dict))
 
     async def end_command(self):
         await self.redis_client.delete([str(self.chat_id), ])
+
 
 
 class InvalidCommandException(Exception):
@@ -107,17 +112,21 @@ class CommandRouter:
 
     async def resolve(self, command, chat_id):
         if type(command) == str:
-            command = (command, list())
+            command = dict(command=command)
 
-        if command[0] not in self._commands_map:
-            self.logger.error('command %s not found' % (command[0],))
-            raise InvalidCommandException(command[0])
+        if command.get('command') not in self._commands_map:
+            self.logger.error('command %s not found' % (command.get('command'),))
+            raise InvalidCommandException(command.get('command'))
 
-        call_class = self._commands_map[command[0]]
+        call_class = self._commands_map[command.get('command')]
         command_instance = call_class(chat_id=chat_id)
+        if command.get('context') is not None:
+            command_instance.context = command.get('context')
+        else:
+            command_instance.context = dict()
 
-        if len(command[1]) > len(call_class.PARAMS):
-            raise InvalidCommandArgumentsException('max args count : %s' % (len(args_list.args)-1))
+        if call_class.PARAMS is not None and len(command.get('args_list', [])) > len(call_class.PARAMS):
+            raise InvalidCommandArgumentsException('max args count exception')
 
         await command_instance.a_init()
-        await command_instance.run(*command[1])
+        return await command_instance.run(*command.get('args_list', list()))

@@ -1,3 +1,5 @@
+import json
+
 import aiohttp
 from telegraph_commander.singleton import Singleton
 
@@ -36,5 +38,14 @@ class TelegramApi:
         async with self.session.get(self.make_bot_url(method), params=params) as response:
             return await response.json(), response.status
 
-    async def send_message(self, chat_id, text):
-        return await self.bot_request('sendMessage', dict(chat_id=chat_id,text=text))
+    async def send_message(self, chat_id, text, variants=None):
+        request_dict = dict(chat_id=chat_id, text=text)
+        if variants:
+            request_dict['reply_markup'] = json.dumps(dict(
+                keyboard=variants,
+                one_time_keyboard=True
+            ))
+
+        result = await self.bot_request('sendMessage', request_dict)
+        print(result)
+        return result
