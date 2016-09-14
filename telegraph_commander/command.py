@@ -85,7 +85,6 @@ class BotCommand:
         await self.redis_client.delete([str(self.chat_id), ])
 
 
-
 class InvalidCommandException(Exception):
     pass
 

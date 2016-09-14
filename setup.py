@@ -9,7 +9,7 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as readme
 
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 DESCRIPTION = 'Telegram Bot framework'
 REPO_NAME = 'telegraph_commander'
 
