@@ -2,7 +2,7 @@ import asyncio
 import json
 
 from telegraph_commander.redis import get_redis_client
-from telegraph_commander.telegram import TelegramApi
+from telegraph_commander.telegram import TelegramApi, TelegramApiException
 from telegraph_commander.command import InvalidCommandArgumentsException, InvalidCommandException
 from telegraph_commander.logger import get_logger
 
@@ -44,11 +44,13 @@ class BaseBot:
         self.telegram_api = TelegramApi(self.event_loop, self.config)
 
     async def a_init(self):
+        self.logger.info('wait for redis connection...')
         self.redis_client = await get_redis_client(self.config)
+        self.logger.info('done')
 
     def run(self):
         try:
-            self.logger.info('running bot...')
+            self.logger.info('running bot [MOD]...')
             self.event_loop.run_until_complete(self.async_start())
         except KeyboardInterrupt:
             self.listen_updates = False
@@ -61,26 +63,28 @@ class BaseBot:
 
     async def updates_loop(self):
         while self.listen_updates:
+            self.logger.info('get updates...')
             await self.get_updates()
 
     async def get_updates(self):
         params = dict(timeout=self.config.TELEGRAM_LONG_POOLING_TIMEOUT)
         if self.last_update_id is not None:
             params['offset'] = self.last_update_id + 1
-        response, status_code = await self.telegram_api.bot_request('getUpdates', params=params)
-        if not response['ok']:
-            return
 
-        update_items = response['result']
+        try:
+            update_items = await self.telegram_api.bot_request('getUpdates', params=params)
+        except TelegramApiException as e:
+            self.logger.error(e)
+
         for item in update_items:
-            await self.processes_update_item(item=item)
+            await self.react_update_item(item=item)
 
-    async def processes_update_item(self, item):
+    async def react_update_item(self, item):
         self.last_update_id = item['update_id']
         message_chat = item['message']['chat']
         self.logger.info("incoming message, from chat %s, text: %s" % (message_chat['id'],  item['message']['text']))
         if message_chat['type'] != 'private':
-            self.logger.error('chat %s is not private, chat type: %s' % (message_chat['id'], message_chat['type'] ))
+            self.logger.error('chat %s is not private, chat type: %s' % (message_chat['id'], message_chat['type']))
             return
 
         await self.route_command(item['message'])
